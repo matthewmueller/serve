@@ -24,6 +24,7 @@ program
   .option('-a, --auth <user>:<pass>', 'specify basic auth credentials')
   .option('-F, --format <fmt>', 'specify the log format string', 'dev')
   .option('-p, --port <port>', 'specify the port [process.env.PORT || 3000]', Number, port)
+  .option('-i, --index <path>', 'set a default index path')
   .option('-H, --hidden', 'enable hidden file serving')
   .option('-S, --no-stylus', 'disable stylus rendering')
   .option('-J, --no-jade', 'disable jade rendering')
@@ -58,6 +59,18 @@ server.use(connect.favicon(program.favicon));
 // logger
 if (program.logs) server.use(connect.logger(program.format));
 
+// set an index
+if (program.index) {
+  server.use(function(req, res, next) {
+    if ('GET' != req.method) return next();
+    var parts = url.parse(req.url);
+    if ('/' != parts.pathname) return next();
+    parts.pathname = '/' + program.index.replace(/^\/+/g, '');
+    req.url = url.format(parts);
+    next();
+  })
+}
+
 // convert .styl to .css to trick stylus.middleware
 if (program.stylus) {
   server.use(function(req, res, next){
@@ -69,8 +82,9 @@ if (program.stylus) {
 // jade
 if (program.jade) {
   server.use(function(req, res, next){
-    if (!req.url.match(/\.jade$/)) return next();
-    var file = join(path, url.parse(req.url).pathname);
+    var pathname = url.parse(req.url).pathname;
+    if (!pathname.match(/\.jade$/)) return next();
+    var file = join(path, pathname);
     fs.readFile(file, 'utf8', function(err, str){
       if (err) return next(err);
       try {
